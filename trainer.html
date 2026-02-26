@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1c7ed6" />
+  <title>Guitar Trainer with Notation</title>
+  <link rel="manifest" href="./app.webmanifest" />
+
+  <!-- VexFlow Library -->
+  <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.3/build/cjs/vexflow.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+
+
+  <style>
+    body {
+      margin: 0;
+      padding: 25px;
+      font-family: Arial, sans-serif;
+      background: #f8f8f6;
+      color: #2c2c2c;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 40px;
+      font-weight: 900;
+      letter-spacing: 2px;
+    }
+
+    .panel {
+      margin: 20px auto;
+      width: 95vw;
+      max-width: 95vw;
+      padding: 18px;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 3px 14px rgba(0,0,0,0.12);
+    }
+
+    .target-note {
+      font-size: 34px;
+      font-weight: 900;
+      color: #2f9e44;
+    }
+
+    .target-string {
+      font-size: 18px;
+      color: #555;
+    }
+    .target-block {
+      margin: 10px 0 4px;
+    }
+
+    .message {
+      margin-top: 10px;
+      font-size: 18px;
+      min-height: 26px;
+      font-weight: bold;
+    }
+    .runtime-hint {
+      width: 95vw;
+      max-width: 95vw;
+      margin: 0 auto 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #fff3bf;
+      border: 1px solid #f59f00;
+      font-size: 14px;
+      text-align: center;
+      display: none;
+    }
+
+    button {
+      border: none;
+      padding: 10px 16px;
+      font-size: 15px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 6px;
+      background: #1c7ed6;
+      color: white;
+    }
+
+    button.secondary { background: #555; }
+    .acc-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #ececec;
+      border-radius: 10px;
+      padding: 4px;
+      margin-right: 8px;
+    }
+    .acc-switch button {
+      margin: 0;
+      min-width: 34px;
+      padding: 6px 10px;
+      font-size: 16px;
+      line-height: 1;
+      background: #fff;
+      color: #222;
+      border: 1px solid #d0d0d0;
+      border-radius: 8px;
+    }
+    .acc-switch button.active {
+      background: #1c7ed6;
+      color: #fff;
+      border-color: #1c7ed6;
+    }
+    .audio-strip {
+      margin: 10px auto;
+      width: 95vw;
+      max-width: 95vw;
+      padding: 10px 12px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 13px;
+    }
+    .audio-strip button {
+      padding: 7px 10px;
+      font-size: 12px;
+      margin: 0;
+      border-radius: 8px;
+    }
+    .audio-strip select {
+      font-size: 12px;
+      padding: 5px 8px;
+    }
+    .input-meter {
+      width: 120px;
+      height: 8px;
+      border-radius: 5px;
+      background: #ddd;
+      overflow: hidden;
+      border: 1px solid #c9c9c9;
+    }
+    .input-meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #2f9e44, #f0c36d, #d64545);
+      transition: width 0.06s linear;
+    }
+
+    #notation {
+      margin: 20px auto;
+      display: flex;
+      justify-content: flex-start;
+      overflow-x: auto;
+      overflow-y: hidden;
+      max-width: 100%;
+      padding-bottom: 4px;
+    }
+    .notation-wrap {
+      position: relative;
+      margin-top: 6px;
+    }
+    .circle-mode-layout.side-by-side {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+    }
+    .circle-mode-layout.side-by-side .notation-wrap {
+      margin-top: 0;
+      flex: 0 0 auto;
+    }
+    .circle-mode-layout.side-by-side #notation {
+      margin: 0;
+    }
+    .circle-mode-layout.side-by-side .circle-fifths-board {
+      margin-top: 0;
+      flex: 0 0 auto;
+    }
+    .fret {
+      position: absolute;
+
+      top: 24px;       /* ⬅️ shorten above High E */
+      bottom: 24px;    /* ⬅️ shorten below Low E */
+
+      width: 6px;
+      transform: translateX(-50%);
+
+      background: linear-gradient(
+        to right,
+        #d0d0d0,
+        #b0b0b0
+      );
+
+      border-radius: 1px;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .fret.nut {
+      width: 10px; /* thicker than frets */
+      background: linear-gradient(
+        to right,
+        #e8d8b5,
+        #d6c29a
+      );
+
+      box-shadow:
+        inset 0 0 2px rgba(0,0,0,0.35),
+        0 0 3px rgba(0,0,0,0.25);
+
+      border-radius: 2px;
+    }
+
+
+    .fretboard {
+      margin-top: 25px;
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      border: 3px solid #333;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    #confidence {
+      width: 160px;
+      height: 10px;
+      background: #ddd;
+      border-radius: 5px;
+      overflow: hidden;
+      margin: 10px auto;
+    }
+
+    #confidenceFill {
+      height: 100%;
+      width: 0%;
+      background: #2f9e44;
+      transition: width 0.1s linear;
+    }
+
+
+    /* --- FRET MARKERS --- */
+    /* --- FRET MARKERS --- */
+    .fret-marker {
+      position: absolute;
+      z-index: 2;
+      width: 18px;
+      height: 18px;
+      background: #cfd8dc;
+      border-radius: 50%;
+      transform: translate(-50%, -50%); /* ⬅️ CENTER BOTH AXES */
+      pointer-events: none;
+    }
+
+    /*.  Tuner.  */
+
+    #tuner {
+      width: 220px;
+      margin: 18px auto 6px;
+      text-align: center;
+      opacity: 0.85;
+      transition: opacity 0.3s ease;
+    }
+
+    #tuner-scale {
+      position: relative;
+      height: 8px;
+      background: linear-gradient(
+        to right,
+        #d64545,
+        #f0c36d 35%,
+        #2f9e44 50%,
+        #f0c36d 65%,
+        #d64545
+      );
+      border-radius: 4px;
+    }
+
+    #tuner-needle {
+      position: absolute;
+      top: -6px;
+      width: 2px;
+      height: 20px;
+      background: #222;
+      left: 50%;
+      transform: translateX(-50%);
+      transition: left 0.08s linear;
+    }
+
+    #tuner-label {
+      margin-top: 6px;
+      font-size: 13px;
+      font-weight: bold;
+      color: #444;
+    }
+    .detected-note {
+      margin: 6px auto 0;
+      min-height: 18px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #555;
+      width: 220px;
+      text-align: center;
+      line-height: 18px;
+    }
+
+
+     #fretboard {
+        position: relative;
+        width: 100%;
+      }
+
+    /* Active string highlight */
+    .string-row.active::before {
+      z-index: 3;
+      background: #2f9e44;
+      height: 4px;
+
+      /* slightly stronger shadow */
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.55),
+        0 0 4px rgba(0, 0, 0, 0.4);
+    }
+    .string-row.source::before {
+      z-index: 3;
+      background: #1c7ed6;
+      height: 4px;
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.55),
+        0 0 4px rgba(28,126,214,0.65);
+    }
+
+    .string-row {
+      position: relative;
+      height: 60px;
+    }
+
+    /* Strings anchors */ 
+  
+    .string-row::after {
+      content: "";
+      position: absolute;
+
+      /* ⬅️ anchor to actual string start (after nut) */
+      
+      left: 10px; /* SAME as nut thickness */
+
+      top: 50%;
+      transform: translateX(-12px) translateY(-50%);
+
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #d0d0d0;
+
+      z-index: 3;
+
+      box-shadow:
+        inset 0 0 2px rgba(0,0,0,0.25),
+        0 1px 1px rgba(0,0,0,0.15);
+    }
+
+    
+    /* Anchor vertical fine-tuning per string */
+    .string-0::after { margin-top: 0px; }   /* High E */
+    .string-1::after { margin-top: 0px; }   /* B */
+    .string-2::after { margin-top: 0px; }   /* G */
+    .string-3::after { margin-top: 0.5px; } /* D */
+    .string-4::after { margin-top: 1px; }   /* A */
+    .string-5::after { margin-top: 1.5px; } /* Low E */
+
+    .string-row.active::after {
+      background: #2f9e44;
+      box-shadow:
+        0 0 6px rgba(47,158,68,0.6),
+        inset 0 0 2px rgba(0,0,0,0.25);
+    }
+    .string-row.source::after {
+      background: #1c7ed6;
+      box-shadow:
+        0 0 6px rgba(28,126,214,0.65),
+        inset 0 0 2px rgba(0,0,0,0.25);
+    }
+
+    .string-4::after { width: 11px; height: 11px; } /* A */
+    .string-5::after { width: 12px; height: 12px; } /* Low E */
+
+
+    .string-row::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 2px;
+      background: #6f6f6f;
+      transform: translateY(-50%);
+      z-index: 2;
+      /* ✅ string shadow (depth) */
+      box-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.35),
+        /* ✅ fret darkening under string */
+        0 0 2px rgba(0, 0, 0, 0.25);
+      
+    }
+    /* String thickness (thin → thick) */
+    .string-0::before { height: 1.5px; } /* High E */
+    .string-1::before { height: 2px;   } /* B */
+    .string-2::before { height: 2.5px; } /* G */
+    .string-3::before { height: 3px;   } /* D */
+    .string-4::before { height: 3.5px; } /* A */
+    .string-5::before { height: 4.5px; } /* Low E */
+
+    /* String color change (thick vs thin) */
+    .string-4::before,
+    .string-5::before {
+      background: #555;
+    }
+
+    /* -------- WOUND STRINGS -------- */
+    .string-2::before,
+    .string-3::before,
+    .string-4::before,
+    .string-5::before {
+      background: repeating-linear-gradient(
+        -45deg,
+        #555,
+        #555 2px,
+        #777 2px,
+        #777 4px
+      );
+    }
+
+    .string-3::before,
+    .string-4::before,
+    .string-5::before {
+      box-shadow:
+        0 2px 3px rgba(0, 0, 0, 0.45),
+        0 0 3px rgba(0, 0, 0, 0.35);
+    }
+    /* Light wound - G String */
+    .string-2::before {
+      height: 2.5px;
+      background: repeating-linear-gradient(
+        -45deg,
+        #6a6a6a,
+        #6a6a6a 1px,
+        #7a7a7a 1px,
+        #7a7a7a 3px
+      );
+    }
+    /* Medium Wound - D String */ 
+    .string-3::before {
+      height: 3px;
+      background: repeating-linear-gradient(
+        -45deg,
+        #606060,
+        #606060 2px,
+        #787878 2px,
+        #787878 5px
+      );
+    }
+    /* Heavy Wound - A String */
+    .string-4::before {
+      height: 3.5px;
+      background: repeating-linear-gradient(
+        -45deg,
+        #555,
+        #555 2.5px,
+        #777 2.5px,
+        #777 6px
+      );
+    }
+
+    /*Very Heady Wound - Low E String */
+    .string-5::before {
+      height: 4.5px;
+      background: repeating-linear-gradient(
+        -45deg,
+        #444,
+        #444 3px,
+        #777 3px,
+        #777 8px
+      );
+    }
+
+    /* -------- UNWOUND STRINGS -------- */
+    .string-0::before,
+    .string-1::before {
+      background: #666;
+    }
+    .string-0::before { /* High E */
+      height: 1.5px;
+      background: #777;
+    }
+
+    .string-1::before { /* B */
+      height: 2px;
+      background: #707070;
+    }
+    
+       
+
+    /* ----- Gradient/color for Frets ------ */
+    .cell {
+      position: relative;
+      z-index: 1;
+      cursor: pointer;
+    }
+
+    
+    .cell.correct {
+      background: rgba(47,158,68,0.8);
+      box-shadow: 0 0 10px rgba(47,158,68,0.8);
+    }
+    .cell.interval-root {
+      background: rgba(28,126,214,0.75);
+      box-shadow: 0 0 10px rgba(28,126,214,0.75);
+    }
+
+    .cell.wrong {
+      background: rgba(224,49,49,0.8);
+    }
+
+    .string-labels {
+      display: grid;
+      grid-template-rows: repeat(6, 60px);
+      align-items: center;
+      justify-items: center;
+      font-weight: bold;
+      color: #555;
+    }
+    .interval-selector {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      text-align: left;
+      display: none;
+    }
+    .interval-checklist {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 6px 10px;
+      margin-top: 6px;
+    }
+    .interval-checklist label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .interval-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+      margin-bottom: 4px;
+    }
+    .interval-top-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      align-items: center;
+      margin-top: 6px;
+    }
+    .interval-top-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .string-scope-checklist {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 14px;
+      margin-top: 4px;
+      justify-content: center;
+    }
+    .string-scope-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 6px;
+    }
+    .string-scope-actions button {
+      padding: 5px 8px;
+      font-size: 12px;
+      margin: 0;
+    }
+    .string-scope-checklist label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+    }
+    .scale-pool-family-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      margin-top: 6px;
+      justify-content: center;
+    }
+    .scale-pool-family-toggles label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+    }
+    .scale-answer-grid {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 8px;
+    }
+    .scale-answer-btn {
+      padding: 7px 10px;
+      font-size: 12px;
+      margin: 0;
+      border-radius: 8px;
+      background: #1c7ed6;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .scale-answer-btn.secondary {
+      background: #555;
+    }
+    .circle-fifths-board {
+      display: none;
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+    .circle-fifths-board.tight-spacing {
+      margin-top: 2px;
+      padding-top: 2px;
+      padding-bottom: 2px;
+    }
+    .circle-fifths-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(760px, 1fr));
+      gap: 14px;
+      align-items: start;
+    }
+    .circle-fifths-panel-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #444;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .circle-wheel {
+      position: relative;
+      width: 600px;
+      height: 600px;
+      margin: 0 auto;
+      border-radius: 50%;
+      background: radial-gradient(circle at center, #ececec 0 40%, #f6f6f6 41% 65%, #ececec 66% 100%);
+      overflow: visible;
+    }
+    #circleScaleNamesWheel.circle-wheel {
+      width: 750px;
+      height: 750px;
+    }
+    .circle-wheel.scale-theme {
+      background: transparent;
+    }
+    .circle-wheel.accidental-theme {
+      background: radial-gradient(circle at center, #f2f2f2 0 40%, #f2f2f2 41% 65%, #ececec 66% 100%);
+    }
+    .circle-wheel-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: auto;
+    }
+    .circle-wheel-svg .outline {
+      fill: none;
+      stroke: #333;
+      stroke-width: 1.6;
+      pointer-events: none;
+    }
+    .circle-wheel-svg .spoke {
+      stroke: rgba(255, 255, 255, 0.92);
+      stroke-width: 1.4;
+      pointer-events: none;
+    }
+    .circle-wheel-svg .ring {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.92);
+      stroke-width: 1.4;
+      pointer-events: none;
+    }
+    .circle-wheel.scale-theme .circle-wheel-svg [stroke] {
+      stroke: #8ec5ff !important;
+    }
+    .circle-wheel.scale-theme .circle-wheel-svg path[style*="fill:none"],
+    .circle-wheel.scale-theme .circle-wheel-svg circle[style*="fill:none"] {
+      stroke: #8ec5ff !important;
+    }
+    .circle-wheel-item {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      font-size: 12px;
+      font-weight: 800;
+      padding: 2px 3px;
+      border-radius: 999px;
+      border: none;
+      background: transparent;
+      color: #111;
+      cursor: pointer;
+      line-height: 1.1;
+      text-align: center;
+      min-width: 34px;
+    }
+    .circle-wheel-item.dimmed {
+      opacity: 0.78;
+    }
+    .circle-wheel-item.correct {
+      background: #2f9e44;
+      color: #fff;
+    }
+    .circle-wheel-item.selected {
+      background: #1c7ed6;
+      color: #fff;
+    }
+    .circle-wheel-item.major {
+      font-size: 30px;
+      font-weight: 900;
+      color: #f5f7f4;
+    }
+    .circle-wheel-item.minor {
+      font-size: 24px;
+      font-weight: 800;
+      color: #4d4f53;
+    }
+    .circle-wheel-item.accidental {
+      min-width: 148px;
+      min-height: 76px;
+      font-size: 1px;
+      color: transparent;
+      background: transparent;
+    }
+    .circle-keysig-glyph {
+      position: absolute;
+      width: 172px;
+      height: 88px;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
+      opacity: 0.9;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+    .circle-keysig-glyph .staff {
+      position: absolute;
+      left: 0;
+      top: 18px;
+      right: 0;
+      height: 52px;
+      background: repeating-linear-gradient(
+        to bottom,
+        #444,
+        #444 1px,
+        transparent 1px,
+        transparent 12px
+      );
+    }
+    .circle-keysig-glyph .clef {
+      position: absolute;
+      left: 4px;
+      top: -4px;
+      font-size: 68px;
+      line-height: 1;
+      color: #111;
+      font-family: "Times New Roman", serif;
+    }
+    .circle-keysig-glyph .acc {
+      position: absolute;
+      left: 56px;
+      top: 16px;
+      right: 2px;
+      font-size: 30px;
+      line-height: 1;
+      letter-spacing: 2px;
+      color: #111;
+      font-family: "Times New Roman", serif;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: clip;
+    }
+    .circle-keysig-glyph.asset {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 150px;
+      height: 78px;
+      background: transparent;
+    }
+    .circle-keysig-glyph.asset img {
+      display: block;
+      max-width: 70px;
+      max-height: 74px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+    .circle-keysig-glyph.asset .sep {
+      font-size: 18px;
+      font-weight: 800;
+      color: #111;
+      line-height: 1;
+      font-family: "Times New Roman", serif;
+    }
+    .circle-keysig-glyph.selected {
+      background: rgba(28, 126, 214, 0.16);
+    }
+    .circle-keysig-glyph.correct {
+      background: rgba(47, 158, 68, 0.16);
+    }
+    .chord-answer-columns {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(140px, 1fr));
+      gap: 10px;
+      align-items: start;
+    }
+    .chord-answer-col {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+    .chord-answer-heading {
+      font-size: 12px;
+      font-weight: 800;
+      color: #444;
+      margin-bottom: 2px;
+    }
+    .chord-answer-subheading {
+      font-size: 11px;
+      font-weight: 800;
+      color: #666;
+      margin-top: 6px;
+      margin-bottom: 2px;
+      border-top: 1px solid #e4e4e4;
+      padding-top: 5px;
+    }
+    .interval-separator {
+      height: 1px;
+      background: rgba(0, 0, 0, 0.12);
+      margin: 8px 0 6px;
+      width: 100%;
+    }
+    .interval-actions button {
+      padding: 5px 8px;
+      font-size: 12px;
+      margin: 0;
+    }
+    .song-editor {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      text-align: left;
+      display: none;
+    }
+    .song-step-editor {
+      margin-top: 8px;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      padding: 10px;
+      background: #fcfcfc;
+      display: none;
+    }
+    .song-step-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .song-step-row:last-child {
+      margin-bottom: 0;
+    }
+    .song-step-row select {
+      padding: 5px 7px;
+      font-size: 12px;
+    }
+    .duration-palette {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .duration-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .duration-btn {
+      min-width: 38px;
+      height: 30px;
+      border: 1px solid #bbb;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .duration-btn svg {
+      width: 24px;
+      height: 28px;
+      display: block;
+      color: #111;
+    }
+    .duration-img {
+      width: 18px;
+      height: 23px;
+      object-fit: contain;
+      display: block;
+    }
+    .duration-img-whole-note {
+      transform: scale(0.75);
+      transform-origin: center;
+    }
+    .duration-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+    }
+    .duration-btn .dot {
+      font-size: 13px;
+      font-weight: 700;
+      color: #111;
+      margin-left: -2px;
+    }
+    .duration-btn.active {
+      background: #1c7ed6;
+      color: #fff;
+      border-color: #1c7ed6;
+    }
+    .duration-btn.active svg,
+    .duration-btn.active .dot {
+      color: #fff;
+    }
+    .duration-btn.active .duration-img {
+      filter: brightness(0) invert(1);
+    }
+    .duration-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+    .song-step-meta {
+      font-size: 12px;
+      color: #666;
+      font-weight: bold;
+    }
+    .song-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      align-items: center;
+    }
+    .song-actions input,
+    .song-actions select {
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+    .song-actions button {
+      padding: 6px 10px;
+      font-size: 12px;
+      margin: 0;
+    }
+    .song-browse {
+      display: none;
+      position: absolute;
+      top: 6px;
+      left: 0;
+      right: 0;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 5;
+      pointer-events: none;
+      padding: 0 8px;
+    }
+    .song-browse button { pointer-events: auto; }
+    .song-browse button,
+    #songFretboardToggleBtn {
+      padding: 4px 6px;
+      font-size: 11px;
+      border-radius: 6px;
+      margin: 0;
+    }
+    .song-browse .label {
+      font-size: 12px;
+      color: #666;
+      font-weight: bold;
+      min-width: 140px;
+      text-align: center;
+      pointer-events: none;
+      flex: 1;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>GUITAR FRETBOARD TRAINER</h1>
+<div id="runtimeHint" class="runtime-hint"></div>
+
+<div class="audio-strip">
+  <strong>Audio Input</strong>
+  <select id="deviceSelect"></select>
+  <label for="playbackInstrument" style="font-weight:700; font-size:12px;">Playback Sound</label>
+  <select id="playbackInstrument">
+    <option value="piano" selected>Piano</option>
+    <option value="rhodes">Rhodes</option>
+    <option value="pad">Pad</option>
+  </select>
+  <label for="sampleOctaveShift" style="font-weight:700; font-size:12px;">Sample Octave</label>
+  <select id="sampleOctaveShift">
+    <option value="0" selected>Normal</option>
+    <option value="-12">-1 Octave</option>
+  </select>
+  <button id="startListeningBtn">Start</button>
+  <button id="stopListeningBtn" class="secondary">Stop</button>
+  <div class="input-meter" aria-label="Mic Input Meter">
+    <div id="inputLevelFill" class="input-meter-fill"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div style="margin-top:4px;">
+    <button id="toggleOptionsBtn" class="secondary" type="button" onclick="window.__toggleOptionsPanel && window.__toggleOptionsPanel()">Hide Options</button>
+  </div>
+  <div id="modeOptionsPanel">
+  <div style="margin-top:8px;">
+    <label for="trainerMode" style="font-weight:bold;">Trainer Mode</label>
+    <select id="trainerMode">
+      <option value="note" selected>Note Training</option>
+      <option value="interval">Interval Training</option>
+      <option value="scale">Scale Training</option>
+      <option value="chord">Chord Training</option>
+      <option value="circle">Circle of Fifths</option>
+      <option value="song-custom">Song Training (Custom)</option>
+      <option value="song-random">Song Training (Randomized)</option>
+    </select>
+  </div>
+  <div style="margin-top:8px;">
+    <label for="noteSpellingMode" style="font-weight:bold;">Question Spelling</label>
+    <select id="noteSpellingMode">
+      <option value="mixed" selected>Mixed (Sharps + Flats)</option>
+      <option value="sharp">Sharps Only</option>
+      <option value="flat">Flats Only</option>
+    </select>
+  </div>
+  <div id="stringScopeBlock" style="margin-top:8px;">
+    <div style="font-weight:bold;">String Scope</div>
+    <div class="string-scope-actions">
+      <button id="stringScopeSelectAllBtn" type="button">Select All</button>
+      <button id="stringScopeSelectNoneBtn" class="secondary" type="button">Select None</button>
+    </div>
+    <div id="stringScopeChecklist" class="string-scope-checklist">
+      <label><input type="checkbox" name="stringScope" value="0" checked /> High E</label>
+      <label><input type="checkbox" name="stringScope" value="1" checked /> B</label>
+      <label><input type="checkbox" name="stringScope" value="2" checked /> G</label>
+      <label><input type="checkbox" name="stringScope" value="3" checked /> D</label>
+      <label><input type="checkbox" name="stringScope" value="4" checked /> A</label>
+      <label><input type="checkbox" name="stringScope" value="5" checked /> Low E</label>
+    </div>
+  </div>
+  <div style="margin-top:8px;">
+    <label for="clefMode" style="font-weight:bold;">Clef Scope</label>
+    <select id="clefMode">
+      <option value="all" selected>Both Clefs</option>
+      <option value="treble">Treble Clef Only</option>
+      <option value="bass">Bass Clef Only</option>
+    </select>
+  </div>
+  <div id="intervalSelector" class="interval-selector">
+    <div style="font-weight:bold;">Intervals Included</div>
+    <div class="interval-top-options">
+      <div class="interval-top-item">
+        <label for="intervalMode" style="font-weight:bold;">Interval Mode</label>
+        <select id="intervalMode">
+          <option value="visual" selected>Visual</option>
+          <option value="ear">Ear</option>
+        </select>
+      </div>
+      <div class="interval-top-item">
+        <input id="intervalCadenceToggle" type="checkbox" />
+        <label for="intervalCadenceToggle" style="font-weight:bold;">Play ii-V-I before prompt</label>
+      </div>
+      <div class="interval-top-item">
+        <label for="intervalEarCount" style="font-weight:bold;">Ear Sequence Length</label>
+        <select id="intervalEarCount">
+          <option value="1" selected>1 Interval</option>
+          <option value="2">2 Intervals</option>
+          <option value="3">3 Intervals</option>
+          <option value="4">4 Intervals</option>
+        </select>
+      </div>
+      <div class="interval-top-item">
+        <label for="intervalDirectionMode" style="font-weight:bold;">Direction Scope</label>
+        <select id="intervalDirectionMode">
+          <option value="both" selected>Both</option>
+          <option value="up">Up Only</option>
+          <option value="down">Down Only</option>
+        </select>
+      </div>
+    </div>
+    <div class="interval-separator"></div>
+    <div class="interval-actions">
+      <button id="intervalSelectAllBtn" type="button">Select All</button>
+      <button id="intervalSelectNoneBtn" class="secondary" type="button">Select None</button>
+    </div>
+    <div id="intervalChecklist" class="interval-checklist"></div>
+  </div>
+  <div id="scaleSelector" class="interval-selector">
+    <div style="font-weight:bold;">Scale Training</div>
+    <div class="interval-top-options">
+      <div class="interval-top-item">
+        <label for="scaleTrainingMode" style="font-weight:bold;">Scale Mode</label>
+        <select id="scaleTrainingMode">
+          <option value="play" selected>Play Scale</option>
+          <option value="ear">Ear Identify</option>
+          <option value="write">Write on Score</option>
+        </select>
+      </div>
+      <div class="interval-top-item">
+        <label for="scaleTypeMode" style="font-weight:bold;">Scale Pool</label>
+        <select id="scaleTypeMode">
+          <option value="mixed" selected>Mixed</option>
+          <option value="major">Ionian/Major</option>
+          <option value="dorian">Dorian</option>
+          <option value="phrygian">Phrygian</option>
+          <option value="lydian">Lydian</option>
+          <option value="mixolydian">Mixolydian</option>
+          <option value="natural_minor">Aeolian/Natural Minor</option>
+          <option value="locrian">Locrian</option>
+          <option value="melodic_minor">Melodic Minor</option>
+          <option value="melodic_dorian_b2">Dorian ♭2 (Melodic Minor)</option>
+          <option value="melodic_lydian_augmented">Lydian Augmented (Melodic Minor)</option>
+          <option value="melodic_lydian_dominant">Lydian Dominant (Melodic Minor)</option>
+          <option value="melodic_mixolydian_b6">Mixolydian ♭6 (Melodic Minor)</option>
+          <option value="melodic_locrian_sharp2">Locrian ♯2 (Melodic Minor)</option>
+          <option value="melodic_altered">Altered / Super Locrian (Melodic Minor)</option>
+          <option value="harmonic_minor">Harmonic Minor</option>
+          <option value="harmonic_locrian_sharp6">Locrian ♯6 (Harmonic Minor)</option>
+          <option value="harmonic_ionian_sharp5">Ionian ♯5 (Harmonic Minor)</option>
+          <option value="harmonic_dorian_sharp4">Dorian ♯4 (Harmonic Minor)</option>
+          <option value="harmonic_phrygian_dominant">Phrygian Dominant (Harmonic Minor)</option>
+          <option value="harmonic_lydian_sharp2">Lydian ♯2 (Harmonic Minor)</option>
+          <option value="harmonic_super_locrian_bb7">Super Locrian ♭♭7 (Harmonic Minor)</option>
+          <option value="major_pentatonic">Major Pentatonic</option>
+          <option value="minor_pentatonic">Minor Pentatonic</option>
+        </select>
+      </div>
+    </div>
+    <div class="scale-pool-family-toggles">
+      <label>
+        <input id="scaleIncludeMelodicMinorModes" type="checkbox" checked />
+        Include Melodic Minor Family (7)
+      </label>
+      <label>
+        <input id="scaleIncludeHarmonicMinorModes" type="checkbox" checked />
+        Include Harmonic Minor Family (7)
+      </label>
+    </div>
+    <div id="scaleEarTools" style="display:none; margin-top:8px;">
+      <button id="scaleReplayBtn" class="secondary" type="button">Replay Scale</button>
+      <div id="scaleEarAnswerButtons" class="scale-answer-grid"></div>
+    </div>
+    <div id="scaleWriteRootTools" style="display:none; margin-top:8px;">
+      <label for="scaleWriteRootNote" style="font-weight:bold;">Root Note</label>
+      <select id="scaleWriteRootNote">
+        <option value="all" selected>All Root Notes</option>
+        <option value="C">C</option>
+        <option value="C#">C#/Db</option>
+        <option value="D">D</option>
+        <option value="D#">D#/Eb</option>
+        <option value="E">E</option>
+        <option value="F">F</option>
+        <option value="F#">F#/Gb</option>
+        <option value="G">G</option>
+        <option value="G#">G#/Ab</option>
+        <option value="A">A</option>
+        <option value="A#">A#/Bb</option>
+        <option value="B">B</option>
+      </select>
+    </div>
+  </div>
+  <div id="chordSelector" class="interval-selector">
+    <div style="font-weight:bold;">Chord Training</div>
+    <div class="interval-top-options">
+      <div class="interval-top-item">
+        <label for="chordTrainingMode" style="font-weight:bold;">Chord Mode</label>
+        <select id="chordTrainingMode">
+          <option value="ear" selected>Ear Identify</option>
+        </select>
+      </div>
+      <div class="interval-top-item">
+        <label for="chordTypeMode" style="font-weight:bold;">Chord Pool</label>
+        <select id="chordTypeMode">
+          <option value="mixed" selected>Mixed (All)</option>
+          <option value="triads">Triads</option>
+          <option value="sus">Sus Chords</option>
+          <option value="seventh">7th Chords</option>
+          <option value="extensions">9th/11th/13th</option>
+        </select>
+      </div>
+      <div class="interval-top-item">
+        <label for="chordPlaybackMode" style="font-weight:bold;">Playback</label>
+        <select id="chordPlaybackMode">
+          <option value="block" selected>Chord</option>
+          <option value="arpeggio">Arpeggio</option>
+        </select>
+      </div>
+      <div class="interval-top-item">
+        <label for="chordArpeggioSpeed" style="font-weight:bold;">Arpeggio Speed</label>
+        <input id="chordArpeggioSpeed" type="range" min="60" max="360" step="5" value="200" />
+        <span id="chordArpeggioSpeedValue" style="font-size:12px; font-weight:700; color:#555;">200 ms</span>
+      </div>
+    </div>
+    <div id="chordEarTools" style="margin-top:8px;">
+      <button id="chordReplayBtn" class="secondary" type="button">Replay Chord</button>
+      <button id="chordReplayOctDownBtn" class="secondary" type="button">Octave -1</button>
+      <button id="chordReplayOctUpBtn" class="secondary" type="button">Octave +1</button>
+      <div id="chordEarAnswerButtons" class="scale-answer-grid"></div>
+    </div>
+  </div>
+  <div id="circleSelector" class="interval-selector">
+    <div style="font-weight:bold;">Circle of Fifths Training</div>
+    <div class="interval-top-options">
+      <div class="interval-top-item">
+        <label for="circleTrainingMode" style="font-weight:bold;">Direction</label>
+        <select id="circleTrainingMode">
+          <option value="sig_to_scale" selected>Accidentals → Scale</option>
+          <option value="scale_to_sig">Scale → Accidentals</option>
+        </select>
+      </div>
+      <div class="interval-top-item">
+        <label for="circleQualityMode" style="font-weight:bold;">Quality Scope</label>
+        <select id="circleQualityMode">
+          <option value="mixed" selected>Mixed (Major + Minor)</option>
+          <option value="major">Major Only</option>
+          <option value="minor">Minor Only</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div id="songEditor" class="song-editor">
+    <div style="font-weight:bold;">Song (Custom): 8 bars in 4/4</div>
+    <div class="song-step-row">
+      <label for="songCustomMode" style="font-weight:bold;">Mode</label>
+      <select id="songCustomMode">
+        <option value="play" selected>Play</option>
+        <option value="edit">Edit</option>
+      </select>
+    </div>
+    <div id="songStepEditor" class="song-step-editor">
+      <div class="song-step-row">
+        <label for="songBarSelect" style="font-weight:bold;">Bar</label>
+        <button id="songStepPrevBtn" class="secondary" type="button">Prev</button>
+        <select id="songBarSelect"></select>
+        <label for="songBeatSelect" style="font-weight:bold;">Beat</label>
+        <select id="songBeatSelect"></select>
+        <button id="songStepNextBtn" class="secondary" type="button">Next</button>
+      </div>
+      <div class="song-step-row">
+        <label for="songStepNoteSelect" style="font-weight:bold;">Note</label>
+        <select id="songStepNoteSelect"></select>
+        <div class="duration-group">
+          <label style="font-weight:bold;">Notes</label>
+          <div id="songStepDurationButtons" class="duration-palette"></div>
+        </div>
+      </div>
+      <div class="song-step-row">
+        <div class="duration-group">
+          <label style="font-weight:bold;">Rests</label>
+          <div id="songStepRestButtons" class="duration-palette"></div>
+        </div>
+      </div>
+      <div id="songStepMeta" class="song-step-meta"></div>
+    </div>
+    <div class="song-actions">
+      <input id="songNameInput" type="text" placeholder="Song name" />
+      <button id="songSaveBtn" type="button">Save Song</button>
+      <select id="songLoadSelect"></select>
+      <button id="songLoadBtn" type="button">Load</button>
+      <button id="songDeleteBtn" class="secondary" type="button">Delete</button>
+    </div>
+  </div>
+  <div id="randomSongTools" class="song-editor">
+    <div style="font-weight:bold;">Song (Randomized): 17 bars in 4/4</div>
+    <div class="song-actions">
+      <button id="randomizeSongBtn" type="button">Randomize Song</button>
+      <label style="display:inline-flex; align-items:center; gap:8px; font-weight:700; font-size:13px;">
+        Generation
+        <select id="randomSongGenerationStyle">
+          <option value="chord" selected>Chord-Driven</option>
+          <option value="counterpoint">Counterpoint</option>
+          <option value="jazz">Jazz-Driven</option>
+        </select>
+      </label>
+      <label style="display:inline-flex; align-items:center; gap:8px; font-weight:700; font-size:13px;">
+        Counterpoint Strictness
+        <select id="randomSongCounterpointStrictness">
+          <option value="light" selected>Light</option>
+          <option value="strict">Strict</option>
+        </select>
+      </label>
+      <label style="display:inline-flex; align-items:center; gap:6px; font-weight:700; font-size:13px;">
+        <input id="randomSongPlayBarChordsToggle" type="checkbox" />
+        Play bar chord cues
+      </label>
+      <label style="display:inline-flex; align-items:center; gap:8px; font-weight:700; font-size:13px;">
+        Loop Tempo
+        <input id="randomSongCueTempoSlider" type="range" min="40" max="180" step="1" value="96" />
+        <span id="randomSongCueTempoValue">96 BPM</span>
+      </label>
+      <label style="display:inline-flex; align-items:center; gap:8px; font-weight:700; font-size:13px;">
+        Chord Volume
+        <input id="randomSongCueVolumeSlider" type="range" min="0" max="100" step="1" value="85" />
+        <span id="randomSongCueVolumeValue">85%</span>
+      </label>
+      <label style="display:inline-flex; align-items:center; gap:8px; font-weight:700; font-size:13px;">
+        Chord Velocity
+        <input id="randomSongCueVelocitySlider" type="range" min="0" max="100" step="1" value="90" />
+        <span id="randomSongCueVelocityValue">90%</span>
+      </label>
+    </div>
+  </div>
+  </div>
+
+  <button id="newQuestionBtn">New Question</button>
+  <button id="revealAnswerBtn" class="secondary">Reveal Answer</button>
+  <div class="target-block">
+    <div id="targetNote" class="target-note">—</div>
+    <div id="targetString" class="target-string">—</div>
+  </div>
+  <div id="scaleWriteTools" style="display:none; margin-top:6px; text-align:center;">
+    <div class="acc-switch" aria-label="Accidental Switch">
+      <button id="scaleWriteAccidentalDoubleFlatBtn" class="secondary" type="button">𝄫</button>
+      <button id="scaleWriteAccidentalFlatBtn" class="secondary" type="button">♭</button>
+      <button id="scaleWriteAccidentalNaturalBtn" class="secondary" type="button">♮</button>
+      <button id="scaleWriteAccidentalSharpBtn" class="secondary" type="button">♯</button>
+      <button id="scaleWriteAccidentalDoubleSharpBtn" class="secondary" type="button">𝄪</button>
+    </div>
+    <button id="scaleWriteCheckBtn" type="button">Check Answer</button>
+  </div>
+  <div id="circleModeLayout" class="circle-mode-layout">
+    <div class="notation-wrap">
+      <div id="songBrowseTools" class="song-browse">
+        <button id="songViewPrevBtn" class="secondary" type="button">Prev 4 Bars</button>
+        <button id="songViewCurrentBtn" class="secondary" type="button">Current Bars</button>
+        <div id="songViewLabel" class="label"></div>
+        <button id="songViewNextBtn" class="secondary" type="button">Next 4 Bars</button>
+      </div>
+      <div id="notation"></div>
+    </div>
+    <div id="circleFifthsBoard" class="circle-fifths-board">
+      <div class="circle-fifths-grid">
+        <div id="circleAccidentalsPanel">
+          <div class="circle-fifths-panel-title">Accidentals</div>
+          <div id="circleAccidentalsWheel" class="circle-wheel"></div>
+        </div>
+        <div id="circleScaleNamesPanel">
+          <div id="circleScaleNamesTitle" class="circle-fifths-panel-title">Scale Names</div>
+          <div id="circleScaleNamesWheel" class="circle-wheel"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:6px; display:flex; gap:8px; justify-content:center;">
+    <button id="intervalReplayBtn" class="secondary" type="button" style="display:none;">Replay</button>
+    <button id="intervalReplayNotesBtn" class="secondary" type="button" style="display:none;">Replay Notes</button>
+  </div>
+  <div style="margin-top:6px;">
+    <button id="songFretboardToggleBtn" class="secondary" style="display:none;" type="button">Hide Fretboard</button>
+  </div>
+  <div class="message" id="message"></div>
+</div>
+
+<div id="fretboardPanel" class="panel" style="padding:0;">
+  <div class="fretboard">
+    <div class="string-labels" id="stringLabels"></div>
+    <div id="fretboard"></div>
+  </div>
+</div>
+
+<div id="confidence">
+  <div id="confidenceFill"></div>
+</div>
+
+<div id="tuner">
+  <div id="tuner-scale">
+    <div id="tuner-needle"></div>
+  </div>
+  <div id="tuner-label">—</div>
+  <div id="detectedNote" class="detected-note">Detected: —</div>
+</div>
+  
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js", { scope: "./" }).catch(() => {});
+  });
+}
+</script>
+<script type="module" src="./trainer-controller.js"></script>
+
+</body>
+</html>

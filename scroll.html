@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scrolling Sight Reading Mode</title>
+  <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.3/build/cjs/vexflow.js"></script>
+  <script type="module">
+  import { AudioEngine } from "./audio-engine.js";
+
+  AudioEngine.onNote(note => {
+    if (!scrollMode) return;
+
+    const target = scrollNotes[scrollIndex];
+    if (note === target) {
+      scrollIndex++;
+
+      if (scrollIndex >= scrollNotes.length) {
+        document.getElementById("message").textContent = "🎵 Exercise complete!";
+        scrollMode = false;
+      } else {
+        document.getElementById("message").textContent = "✅ Good!";
+        renderScrollingNotation(scrollNotes, scrollIndex);
+      }
+    }
+  });
+
+  async function startScrollMode() {
+    scrollMode = true;
+    scrollNotes = generateScrollNotes(8);
+    scrollIndex = 0;
+    await AudioEngine.start();
+    renderScrollingNotation(scrollNotes, scrollIndex);
+  }
+
+  function stopScrollMode() {
+    scrollMode = false;
+    AudioEngine.stop();
+    document.getElementById("message").textContent = "Stopped.";
+  }
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 25px;
+      font-family: Arial, sans-serif;
+      background: #f8f8f6;
+      color: #2c2c2c;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 36px;
+      font-weight: 900;
+    }
+
+    .panel {
+      margin: 20px auto;
+      max-width: 1100px;
+      padding: 18px;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 3px 14px rgba(0,0,0,0.12);
+    }
+
+    button {
+      border: none;
+      padding: 10px 16px;
+      font-size: 15px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 6px;
+      background: #1c7ed6;
+      color: white;
+    }
+
+    #notation {
+      margin: 40px auto;
+      display: flex;
+      justify-content: center;
+    }
+
+    .message {
+      font-size: 18px;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🎼 Scrolling Sight-Reading Mode</h1>
+
+<div class="panel">
+  <button onclick="startScrollMode()">Start Exercise</button>
+  <button onclick="stopScrollMode()">Stop</button>
+  <button onclick="location.href='trainer.html'">⬅ Back to Trainer</button>
+
+  <div id="notation"></div>
+  <div class="message" id="message"></div>
+</div>
+
+<script>
+const VF = Vex;
+const notesSharp = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+
+function noteToMidi(note) {
+  const m = note.match(/^([A-G]#?)(\d)$/);
+  return (parseInt(m[2]) + 1) * 12 + notesSharp.indexOf(m[1]);
+}
+
+function midiToNote(m) {
+  return notesSharp[m % 12] + (Math.floor(m/12)-1);
+}
+
+// ---------- SCROLL STATE ----------
+let scrollNotes = [];
+let scrollIndex = 0;
+let scrollMode = false;
+
+// Generate random notes
+function generateScrollNotes(count = 8) {
+  const guitarRange = ["E2","F2","G2","A2","B2","C3","D3","E3","F3","G3","A3","B3","C4","D4","E4"];
+  return Array.from({length: count}, () =>
+    guitarRange[Math.floor(Math.random() * guitarRange.length)]
+  );
+}
+
+// Draw staff + highlighted note
+function renderScrollingNotation(notes, activeIndex = 0) {
+  const div = document.getElementById("notation");
+  div.innerHTML = "";
+
+  const renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
+  renderer.resize(900, 260);
+  const context = renderer.getContext();
+
+  const trebleStave = new VF.Stave(40, 40, 820);
+  trebleStave.addClef("treble").addTimeSignature("4/4").setContext(context).draw();
+
+  const bassStave = new VF.Stave(40, 140, 820);
+  bassStave.addClef("bass").setContext(context).draw();
+
+  new VF.StaveConnector(trebleStave, bassStave)
+    .setType(VF.StaveConnector.type.BRACE)
+    .setContext(context)
+    .draw();
+
+  const trebleNotes = [];
+  const bassNotes = [];
+
+  notes.forEach((note, i) => {
+    const m = note.match(/^([A-G]#?)(\d)$/);
+    const pitch = m[1].toLowerCase();
+    const octave = m[2];
+    const key = `${pitch}/${octave}`;
+    const midi = noteToMidi(note);
+    const useBass = midi < noteToMidi("A3");
+
+    const staveNote = new VF.StaveNote({
+      clef: useBass ? "bass" : "treble",
+      keys: [key],
+      duration: "q"
+    });
+
+    if (pitch.includes("#")) {
+      staveNote.addAccidental(0, new VF.Accidental("#"));
+    }
+
+    if (i === activeIndex) {
+      staveNote.setStyle({ fillStyle: "#1c7ed6", strokeStyle: "#1c7ed6" });
+    }
+
+    if (useBass) bassNotes.push(staveNote);
+    else trebleNotes.push(staveNote);
+  });
+  
+  if (trebleNotes.length) {
+    const trebleVoice = new VF.Voice({
+      num_beats: trebleNotes.length,
+      beat_value: 4
+    }).setStrict(false);
+
+    trebleVoice.addTickables(trebleNotes);
+
+    new VF.Formatter()
+      .joinVoices([trebleVoice])
+      .formatToStave([trebleVoice], trebleStave);
+
+    trebleVoice.draw(context, trebleStave);
+  }
+
+  if (bassNotes.length) {
+    const bassVoice = new VF.Voice({
+      num_beats: bassNotes.length,
+      beat_value: 4
+    }).setStrict(false);
+
+    bassVoice.addTickables(bassNotes);
+
+    new VF.Formatter()
+      .joinVoices([bassVoice])
+      .formatToStave([bassVoice], bassStave);
+
+    bassVoice.draw(context, bassStave);
+  }
+
+
+  
+}
+
+function startScrollMode() {
+  scrollMode = true;
+  scrollNotes = generateScrollNotes(8);
+  scrollIndex = 0;
+  renderScrollingNotation(scrollNotes, scrollIndex);
+}
+
+function stopScrollMode() {
+  scrollMode = false;
+  document.getElementById("message").textContent = "Stopped.";
+}
+</script>
+
+</body>
+</html>

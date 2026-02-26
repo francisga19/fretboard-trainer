@@ -1,0 +1,11 @@
+.DS_Store
+
+# Local runtime/server files
+.trainer_server_pid
+.trainer_server_port
+trainer_debug_log
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
