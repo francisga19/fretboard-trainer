@@ -1,4 +1,4 @@
-const CACHE_VERSION = "fretboard-trainer-v1";
+const CACHE_VERSION = "fretboard-trainer-v2";
 const SHELL_CACHE = `shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
@@ -37,6 +37,8 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
   const isSameOrigin = url.origin === self.location.origin;
+  const appFileRe = /\.(?:html|js|css|webmanifest)$/i;
+  const isAppFile = isSameOrigin && appFileRe.test(url.pathname);
 
   if (req.mode === "navigate") {
     event.respondWith(
@@ -52,6 +54,25 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (!isSameOrigin) return;
+
+  // Always prefer network for app code so UI/logic updates are seen immediately.
+  if (isAppFile) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(RUNTIME_CACHE).then((cache) => cache.put(req, copy));
+          return res;
+        })
+        .catch(async () => {
+          const runtimeCached = await caches.open(RUNTIME_CACHE).then((cache) => cache.match(req));
+          if (runtimeCached) return runtimeCached;
+          const shellCached = await caches.open(SHELL_CACHE).then((cache) => cache.match(req));
+          return shellCached || caches.match("./trainer.html");
+        })
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(req).then((cached) => {

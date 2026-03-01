@@ -3080,6 +3080,22 @@ function getSelectedChordPool() {
   return CHORDS.filter((chord) => chord.group === state.chordTypeMode);
 }
 
+function getChordAnswerBucket(chord) {
+  if (!chord) return "all";
+  if (chord.group !== "extensions") return chord.group;
+  const text = `${chord.key || ""} ${chord.label || ""}`.toLowerCase();
+  if (text.includes("13")) return "extensions13";
+  if (text.includes("11")) return "extensions11";
+  return "extensions9";
+}
+
+function getChordAnswerPoolForTarget(chordPool, targetChord) {
+  if (!Array.isArray(chordPool) || chordPool.length === 0 || !targetChord) return chordPool || [];
+  const targetBucket = getChordAnswerBucket(targetChord);
+  const filtered = chordPool.filter((chord) => getChordAnswerBucket(chord) === targetBucket);
+  return filtered.length > 0 ? filtered : chordPool;
+}
+
 function refreshScaleModeUI() {
   const inScaleMode = isScaleMode();
   const isEar = isScaleMode() && state.scaleTrainingMode === "ear";
@@ -3321,8 +3337,9 @@ function newChordEarQuestion() {
       ? "Listen to the arpeggio, then choose its type."
       : "Listen to the chord, then choose its type."
   );
+  const answerPool = getChordAnswerPoolForTarget(chordPool, pick.chord);
   ui.renderChordAnswerButtons(
-    chordPool,
+    answerPool,
     (chord) => {
       if (!state.currentTarget || state.currentTarget.mode !== "chord-ear") return;
       if (chord.key === state.currentTarget.chordKey) {
@@ -3332,7 +3349,7 @@ function newChordEarQuestion() {
         ui.setMessage("❌ Try again");
       }
     },
-    { grouped: state.chordTypeMode === "mixed" }
+    { grouped: false }
   );
   playChordPrompt(pick.chordMidis, state.chordPlaybackMode);
 }
