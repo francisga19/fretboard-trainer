@@ -1022,6 +1022,182 @@
       pointer-events: none;
       flex: 1;
     }
+
+    @media (max-width: 1024px) {
+      body {
+        padding: 14px;
+      }
+      h1 {
+        font-size: 32px;
+        letter-spacing: 1px;
+      }
+      .panel,
+      .audio-strip,
+      .runtime-hint {
+        width: 96vw;
+        max-width: 96vw;
+      }
+      .interval-top-options {
+        gap: 8px 12px;
+      }
+      .interval-top-item {
+        flex-wrap: wrap;
+      }
+      .chord-answer-columns {
+        grid-template-columns: repeat(3, minmax(150px, 1fr));
+      }
+      .circle-wheel {
+        width: 520px;
+        height: 520px;
+      }
+      #circleScaleNamesWheel.circle-wheel {
+        width: 620px;
+        height: 620px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 10px;
+      }
+      h1 {
+        font-size: 24px;
+        margin: 8px 0 10px;
+      }
+      .panel {
+        margin: 12px auto;
+        padding: 12px;
+        border-radius: 10px;
+      }
+      button,
+      .audio-strip button,
+      .song-actions button {
+        min-height: 40px;
+      }
+      select,
+      input[type="text"],
+      input[type="number"] {
+        min-height: 38px;
+      }
+      .audio-strip {
+        justify-content: flex-start;
+        gap: 6px;
+        padding: 8px;
+        position: sticky;
+        top: 0;
+        z-index: 20;
+      }
+      .audio-strip > strong {
+        width: 100%;
+        text-align: left;
+      }
+      #deviceSelect {
+        min-width: 0;
+        flex: 1 1 220px;
+      }
+      #modeOptionsPanel select {
+        width: 100%;
+        max-width: 100%;
+      }
+      .interval-top-options,
+      .song-step-row,
+      .song-actions,
+      .duration-group {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .interval-top-item {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .interval-top-item select {
+        max-width: 100%;
+      }
+      .interval-actions,
+      .string-scope-actions {
+        justify-content: flex-start;
+      }
+      .string-scope-checklist,
+      .interval-checklist,
+      .scale-answer-grid {
+        grid-template-columns: 1fr;
+      }
+      .string-scope-checklist {
+        display: grid;
+      }
+      .chord-answer-columns {
+        grid-template-columns: 1fr;
+      }
+      .circle-mode-layout.side-by-side {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .circle-fifths-grid {
+        grid-template-columns: 1fr;
+      }
+      .circle-wheel {
+        width: 360px;
+        height: 360px;
+      }
+      #circleScaleNamesWheel.circle-wheel {
+        width: 400px;
+        height: 400px;
+      }
+      .circle-wheel-item.major {
+        font-size: 20px;
+      }
+      .circle-wheel-item.minor {
+        font-size: 16px;
+      }
+      #fretboardPanel {
+        overflow-x: auto;
+      }
+      .fretboard {
+        min-width: 760px;
+      }
+      .song-browse {
+        position: static;
+        pointer-events: auto;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 0;
+        margin-bottom: 8px;
+      }
+      .song-browse .label {
+        order: 4;
+        width: 100%;
+        min-width: 0;
+        text-align: left;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .target-note {
+        font-size: 28px;
+      }
+      .target-string {
+        font-size: 16px;
+      }
+      #notation {
+        margin: 10px auto;
+      }
+      .circle-wheel {
+        width: 300px;
+        height: 300px;
+      }
+      #circleScaleNamesWheel.circle-wheel {
+        width: 330px;
+        height: 330px;
+      }
+      .input-meter {
+        width: 100px;
+      }
+      .song-browse button,
+      #songFretboardToggleBtn {
+        font-size: 10px;
+        padding: 3px 5px;
+      }
+    }
   </style>
 </head>
 
@@ -1317,6 +1493,7 @@
     <div style="font-weight:bold;">Song (Randomized): 17 bars in 4/4</div>
     <div class="song-actions">
       <button id="randomizeSongBtn" type="button">Randomize Song</button>
+      <button id="randomSongStartOverBtn" type="button">Start Over</button>
       <label style="display:inline-flex; align-items:center; gap:8px; font-weight:700; font-size:13px;">
         Generation
         <select id="randomSongGenerationStyle">

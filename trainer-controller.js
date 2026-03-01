@@ -523,9 +523,7 @@ function clamp01(value) {
 
 function applySampleOctaveShift(midi) {
   const userShift = Number(state.sampleOctaveShiftSemitones) || 0;
-  const instrument = getSelectedPlaybackInstrument();
-  const instrumentShift = instrument === "rhodes" ? -12 : 0;
-  const shifted = midi + userShift + instrumentShift;
+  const shifted = midi + userShift;
   return Math.max(21, Math.min(108, shifted));
 }
 
@@ -4617,6 +4615,13 @@ function setupControls() {
       startSongTraining();
     }
   });
+  if (ui.controls.randomSongStartOverBtn) {
+    ui.controls.randomSongStartOverBtn.addEventListener("click", () => {
+      if (!isRandomSongMode()) return;
+      startSongTraining();
+      ui.setMessage("Restarted current randomized song.");
+    });
+  }
   if (ui.controls.randomSongGenerationStyle) {
     ui.controls.randomSongGenerationStyle.addEventListener("change", (event) => {
       const mode = event.target.value;

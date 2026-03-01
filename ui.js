@@ -90,6 +90,7 @@ export function createUI() {
       songFretboardToggleBtn: document.getElementById("songFretboardToggleBtn"),
       randomSongTools: document.getElementById("randomSongTools"),
       randomizeSongBtn: document.getElementById("randomizeSongBtn"),
+      randomSongStartOverBtn: document.getElementById("randomSongStartOverBtn"),
       randomSongGenerationStyle: document.getElementById("randomSongGenerationStyle"),
       randomSongCounterpointStrictness: document.getElementById("randomSongCounterpointStrictness"),
       randomSongPlayBarChordsToggle: document.getElementById("randomSongPlayBarChordsToggle"),
