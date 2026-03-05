@@ -2,7 +2,7 @@
 const notesSharp = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 
 const STRING_PROFILES = {
-  all:   { min: 70,  max: 1000, foldAbove: 1400, confidence: 2 },
+  all:   { min: 70,  max: 1000, foldAbove: 1400, confidence: 3 },
   lowE:  { min: 75,  max: 165, foldAbove: 200, confidence: 4 },
   A:     { min: 100, max: 220, foldAbove: 300, confidence: 4 },
   D:     { min: 140, max: 330, foldAbove: 420, confidence: 3 },
@@ -73,12 +73,13 @@ let expectedMinFreq = 70;
 let expectedMaxFreq = 500;
 let lastFrequency = null;
 
-const ATTACK_MIN_RMS = 0.008;
-const ATTACK_DELTA_RMS = 0.0018;
+const ATTACK_MIN_RMS = 0.006;
+const ATTACK_DELTA_RMS = 0.0012;
 const ATTACK_NOISE_MULTIPLIER = 1.7;
 const ATTACK_MAX_THRESHOLD_RMS = 0.016;
 const REARM_SILENCE_RMS = 0.006;
 const REARM_SILENCE_FRAMES = 8;
+const REARM_NO_PITCH_FRAMES = 20;
 const NOISE_FLOOR_ALPHA = 0.02;
 
 function computeRms(buf) {
@@ -139,18 +140,35 @@ export const AudioEngine = (() => {
   let running = false;
 
   let lastNote = null;
+  let lastMidi = null;
   let stableCount = 0;
   let awaitingAttack = true;
+  let attackGateEnabled = false;
   let noiseFloor = 0.003;
   let previousRms = 0;
   let silenceFrames = 0;
+  let noPitchFrames = 0;
 
   function resetStability() {
     lastNote = null;
+    lastMidi = null;
     stableCount = 0;
-    awaitingAttack = true;
+    awaitingAttack = attackGateEnabled;
     silenceFrames = 0;
     previousRms = 0;
+    noPitchFrames = 0;
+  }
+
+  function setAttackGateEnabled(enabled) {
+    attackGateEnabled = !!enabled;
+    if (attackGateEnabled) {
+      awaitingAttack = true;
+    } else {
+      awaitingAttack = false;
+    }
+    silenceFrames = 0;
+    previousRms = 0;
+    noPitchFrames = 0;
   }
 
   function emitNote(payload) {
@@ -239,11 +257,13 @@ export const AudioEngine = (() => {
       audioContext = null;
     }
     lastNote = null;
+    lastMidi = null;
     stableCount = 0;
-    awaitingAttack = true;
+    awaitingAttack = attackGateEnabled;
     noiseFloor = 0.003;
     previousRms = 0;
     silenceFrames = 0;
+    noPitchFrames = 0;
     emitLevel(0);
 
   }
@@ -266,14 +286,16 @@ export const AudioEngine = (() => {
         noiseFloor * (1 - NOISE_FLOOR_ALPHA) +
         floorSample * NOISE_FLOOR_ALPHA;
 
-      if (awaitingAttack) {
+      if (attackGateEnabled && awaitingAttack) {
         const dynamicThreshold = Math.min(
           ATTACK_MAX_THRESHOLD_RMS,
           Math.max(ATTACK_MIN_RMS, noiseFloor * ATTACK_NOISE_MULTIPLIER)
         );
-        const attackDetected =
+        const risingAttack =
           rms >= dynamicThreshold &&
           (rms - previousRms) >= ATTACK_DELTA_RMS;
+        const strongAttack = rms >= dynamicThreshold * 1.35;
+        const attackDetected = risingAttack || strongAttack;
 
         previousRms = rms;
 
@@ -295,13 +317,19 @@ export const AudioEngine = (() => {
         lastNote = null;
         stableCount = 0;
         lastFrequency = null;
-        if (rms < REARM_SILENCE_RMS) {
+        noPitchFrames++;
+        if (attackGateEnabled && rms < REARM_SILENCE_RMS) {
           silenceFrames++;
           if (silenceFrames >= REARM_SILENCE_FRAMES) {
             awaitingAttack = true;
+            previousRms = 0;
           }
         } else {
           silenceFrames = 0;
+        }
+        if (attackGateEnabled && noPitchFrames >= REARM_NO_PITCH_FRAMES) {
+          awaitingAttack = true;
+          previousRms = 0;
         }
         return;
       }
@@ -327,18 +355,35 @@ export const AudioEngine = (() => {
         normalized < expectedMinFreq * 0.85 ||
         normalized > expectedMaxFreq * 1.25
       ) {
-        if (rms < REARM_SILENCE_RMS) {
+        noPitchFrames++;
+        if (attackGateEnabled && rms < REARM_SILENCE_RMS) {
           silenceFrames++;
           if (silenceFrames >= REARM_SILENCE_FRAMES) {
             awaitingAttack = true;
+            previousRms = 0;
           }
         } else {
           silenceFrames = 0;
         }
+        if (attackGateEnabled && noPitchFrames >= REARM_NO_PITCH_FRAMES) {
+          awaitingAttack = true;
+          previousRms = 0;
+        }
         return;
       }
 
-      const note = midiToNote(freqToMidi(normalized));
+      let midi = freqToMidi(normalized);
+      if (lastMidi !== null && normalized >= 220) {
+        const lastMidiFreq = 440 * Math.pow(2, (lastMidi - 69) / 12);
+        const centsFromLast = 1200 * Math.log2(normalized / lastMidiFreq);
+        // High strings jitter more; keep previous MIDI when drift is tiny.
+        if (Math.abs(centsFromLast) < 20) {
+          midi = lastMidi;
+        }
+      }
+      const note = midiToNote(midi);
+      lastMidi = midi;
+      noPitchFrames = 0;
 
       if (note === lastNote) {
         stableCount++;
@@ -353,7 +398,7 @@ export const AudioEngine = (() => {
         confidence: stableCount
       });
 
-      if (rms < REARM_SILENCE_RMS) {
+      if (attackGateEnabled && rms < REARM_SILENCE_RMS) {
         silenceFrames++;
         if (silenceFrames >= REARM_SILENCE_FRAMES) {
           awaitingAttack = true;
@@ -381,6 +426,10 @@ export const AudioEngine = (() => {
     levelListeners.push(fn);
   }
 
+  function getRequiredConfidence() {
+    return activeProfile?.confidence ?? 3;
+  }
+
   async function setDevice(deviceId) {
     selectedDeviceId = deviceId;
 
@@ -397,9 +446,11 @@ export const AudioEngine = (() => {
     stop,
     onNote,
     onLevel,
+    getRequiredConfidence,
     setDevice,
     setStringProfile,
     setActiveString,
+    setAttackGateEnabled,
     resetStability
   };
 

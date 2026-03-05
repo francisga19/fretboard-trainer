@@ -26,6 +26,9 @@ export function createUI() {
       trainerMode: document.getElementById("trainerMode"),
       noteSpellingMode: document.getElementById("noteSpellingMode"),
       stringScopeBlock: document.getElementById("stringScopeBlock"),
+      noteRangeBlock: document.getElementById("noteRangeBlock"),
+      noteFretMin: document.getElementById("noteFretMin"),
+      noteFretMax: document.getElementById("noteFretMax"),
       stringScopeInputs: Array.from(document.querySelectorAll('input[name="stringScope"]')),
       stringScopeSelectAllBtn: document.getElementById("stringScopeSelectAllBtn"),
       stringScopeSelectNoneBtn: document.getElementById("stringScopeSelectNoneBtn"),
@@ -381,7 +384,7 @@ export function createUI() {
     const totalWidth = startX * 2 + barsPerView * staveWidth + (barsPerView - 1) * staveGap;
     renderer.resize(totalWidth, 360);
     const context = renderer.getContext();
-    const svg = context && context.svg ? context.svg : null;
+    const svg = (context && context.svg) || elements.notation.querySelector("svg");
     const topY = 62;
     const bottomY = 212;
     const firstBarNumber = Math.floor(viewStart / stepsPerBar) + 1;
@@ -864,6 +867,7 @@ export function createUI() {
     for (let fret = 0; fret <= fretCount; fret++) {
       const fretEl = document.createElement("div");
       fretEl.className = "fret";
+      fretEl.dataset.fret = String(fret);
       if (fret === 0) fretEl.classList.add("nut");
       fretEl.style.left = `${((fret + 1) / (fretCount + 1)) * 100}%`;
       elements.fretboard.appendChild(fretEl);
@@ -936,6 +940,34 @@ export function createUI() {
     elements.runtimeHint.textContent = message;
   }
 
+  function setFretRangeLimits(minFret, maxFret, visible = true) {
+    const min = Math.max(0, Math.min(12, Number(minFret) || 0));
+    const max = Math.max(0, Math.min(12, Number(maxFret) || 12));
+    const lo = Math.min(min, max);
+    const hi = Math.max(min, max);
+    const leftBoundaryLine = lo > 0 ? lo - 1 : null;
+    const rightBoundaryLine = hi < 12 ? hi : null;
+    const frets = elements.fretboard.querySelectorAll(".fret");
+    frets.forEach((fretEl) => {
+      const fret = parseInt(fretEl.dataset.fret || "-1", 10);
+      const shouldHighlight = visible && (fret === leftBoundaryLine || fret === rightBoundaryLine);
+      fretEl.classList.toggle("range-limit", shouldHighlight);
+    });
+  }
+
+  function setFretRangeMask(minFret, maxFret, visible = true) {
+    const min = Math.max(0, Math.min(12, Number(minFret) || 0));
+    const max = Math.max(0, Math.min(12, Number(maxFret) || 12));
+    const lo = Math.min(min, max);
+    const hi = Math.max(min, max);
+    const cells = elements.fretboard.querySelectorAll(".cell");
+    cells.forEach((cell) => {
+      const fret = parseInt(cell.dataset.fret || "-1", 10);
+      const outOfRange = visible && (fret < lo || fret > hi);
+      cell.classList.toggle("out-of-range", outOfRange);
+    });
+  }
+
   function setIntervalSelectorVisible(visible) {
     elements.controls.intervalSelector.style.display = visible ? "block" : "none";
   }
@@ -968,6 +1000,11 @@ export function createUI() {
   function setStringScopeVisible(visible) {
     if (!elements.controls.stringScopeBlock) return;
     elements.controls.stringScopeBlock.style.display = visible ? "block" : "none";
+  }
+
+  function setNoteRangeVisible(visible) {
+    if (!elements.controls.noteRangeBlock) return;
+    elements.controls.noteRangeBlock.style.display = visible ? "block" : "none";
   }
 
   function setChordSelectorVisible(visible) {
@@ -1508,7 +1545,7 @@ export function createUI() {
     const renderer = new VF.Renderer(elements.notation, VF.Renderer.Backends.SVG);
     renderer.resize(width, 220);
     const context = renderer.getContext();
-    const svg = context && context.svg ? context.svg : null;
+    const svg = (context && context.svg) || elements.notation.querySelector("svg");
     const trebleStave = new VF.Stave(40, 30, width - 80);
     trebleStave.addClef("treble").setContext(context).draw();
     const bassStave = new VF.Stave(40, 120, width - 80);
@@ -1653,6 +1690,8 @@ export function createUI() {
     highlightIntervalSource,
     buildFretboard,
     addFretMarkers,
+    setFretRangeLimits,
+    setFretRangeMask,
     showRuntimeHint,
     setIntervalSelectorVisible,
     setScaleSelectorVisible,
@@ -1661,6 +1700,7 @@ export function createUI() {
     setScaleWriteToolsVisible,
     setScaleWriteRootToolsVisible,
     setStringScopeVisible,
+    setNoteRangeVisible,
     setChordSelectorVisible,
     setChordEarToolsVisible,
     setCircleFifthsBoardVisible,

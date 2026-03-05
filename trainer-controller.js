@@ -271,6 +271,8 @@ const state = {
   questionAnswered: false,
   questionSpellingMode: "mixed",
   selectedStringIndexes: new Set(ALL_STRING_INDEXES),
+  noteFretMin: 0,
+  noteFretMax: 12,
   clefFilterMode: "all",
   intervalDirectionMode: "both",
   selectedIntervalKeys: new Set(INTERVALS.map((interval) => interval.key)),
@@ -570,7 +572,20 @@ function refreshModeChrome() {
   const inSongMode = isSongMode();
   const inScaleWriteMode = isScaleMode() && state.scaleTrainingMode === "write";
   const inCircleMode = isCircleMode();
+  const inNoteMode = state.trainerMode === "note";
+  if (typeof AudioEngine.setAttackGateEnabled === "function") {
+    AudioEngine.setAttackGateEnabled(inSongMode);
+  }
   ui.setPrimarySongActionsVisible(inSongMode);
+  if (typeof ui.setNoteRangeVisible === "function") {
+    ui.setNoteRangeVisible(inNoteMode);
+  }
+  if (typeof ui.setFretRangeLimits === "function") {
+    ui.setFretRangeLimits(state.noteFretMin, state.noteFretMax, inNoteMode);
+  }
+  if (typeof ui.setFretRangeMask === "function") {
+    ui.setFretRangeMask(state.noteFretMin, state.noteFretMax, inNoteMode);
+  }
   ui.setIntervalReplayVisible(state.trainerMode === "interval" && state.intervalMode === "ear");
   if (typeof ui.setCircleFifthsBoardVisible === "function") {
     ui.setCircleFifthsBoardVisible(inCircleMode);
@@ -591,6 +606,14 @@ function refreshModeChrome() {
   }
   ui.setFretboardVisible(!state.songFretboardHidden);
   ui.setSongFretboardToggleLabel(state.songFretboardHidden);
+}
+
+function getQuestionFretIndex() {
+  const min = Math.max(0, Math.min(12, Number(state.noteFretMin) || 0));
+  const max = Math.max(0, Math.min(12, Number(state.noteFretMax) || 12));
+  const lo = Math.min(min, max);
+  const hi = Math.max(min, max);
+  return lo + Math.floor(Math.random() * (hi - lo + 1));
 }
 
 function createDefaultSongBeats() {
@@ -2779,7 +2802,7 @@ function newQuestion() {
       ui.setMessage("Select at least one string.");
       return;
     }
-    f = Math.floor(Math.random() * 13);
+    f = getQuestionFretIndex();
     target = noteAt(tuning[s].note, f);
     if (matchesClefFilter(target.midi)) break;
   }
@@ -2791,7 +2814,7 @@ function newQuestion() {
       ui.setMessage("Select at least one string.");
       return;
     }
-    f = Math.floor(Math.random() * 13);
+    f = getQuestionFretIndex();
     target = noteAt(tuning[s].note, f);
   }
 
@@ -3906,18 +3929,36 @@ async function loadDevices() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     deviceSelect.innerHTML = "";
 
-    devices
-      .filter((device) => device.kind === "audioinput")
-      .forEach((device) => {
-        const option = document.createElement("option");
-        option.value = device.deviceId;
-        option.textContent = device.label || "Audio input";
-        deviceSelect.appendChild(option);
-      });
+    const audioInputs = devices.filter((device) => device.kind === "audioinput");
+    audioInputs.forEach((device) => {
+      const option = document.createElement("option");
+      option.value = device.deviceId;
+      option.textContent = device.label || "Audio input";
+      deviceSelect.appendChild(option);
+    });
 
     if (deviceSelect.options.length > 0) {
-      deviceSelect.value = deviceSelect.options[0].value;
+      const savedDeviceId = localStorage.getItem("fretboard_selected_input_device") || "";
+      const isVirtualInput = (device) => {
+        const label = (device?.label || "").toLowerCase();
+        return (
+          label.includes("blackhole")
+          || label.includes("virtual")
+          || label.includes("loopback")
+          || label.includes("aggregate")
+        );
+      };
+      const savedDevice = audioInputs.find((d) => d.deviceId === savedDeviceId) || null;
+      const hasSaved = !!savedDevice;
+      const savedIsUsableByDefault = hasSaved && !isVirtualInput(savedDevice);
+      const preferredInput = audioInputs.find((d) => {
+        return !isVirtualInput(d);
+      });
+      deviceSelect.value = hasSaved
+        ? (savedIsUsableByDefault ? savedDeviceId : (preferredInput?.deviceId || savedDeviceId))
+        : (preferredInput?.deviceId || deviceSelect.options[0].value);
       await AudioEngine.setDevice(deviceSelect.value);
+      localStorage.setItem("fretboard_selected_input_device", deviceSelect.value);
     }
   } finally {
     permissionStream.getTracks().forEach((track) => track.stop());
@@ -3935,6 +3976,12 @@ function setupControls() {
   }
   ui.controls.trainerMode.value = state.trainerMode;
   ui.controls.noteSpellingMode.value = state.questionSpellingMode;
+  if (ui.controls.noteFretMin) {
+    ui.controls.noteFretMin.value = String(state.noteFretMin);
+  }
+  if (ui.controls.noteFretMax) {
+    ui.controls.noteFretMax.value = String(state.noteFretMax);
+  }
   if (Array.isArray(ui.controls.stringScopeInputs)) {
     ui.controls.stringScopeInputs.forEach((input) => {
       const idx = parseInt(input.value, 10);
@@ -4132,6 +4179,49 @@ function setupControls() {
     state.questionSpellingMode = mode;
     newQuestion();
   });
+
+  if (ui.controls.noteFretMin) {
+    ui.controls.noteFretMin.addEventListener("change", (event) => {
+      const value = Math.max(0, Math.min(12, parseInt(event.target.value, 10) || 0));
+      state.noteFretMin = value;
+      if (state.noteFretMin > state.noteFretMax) {
+        state.noteFretMax = state.noteFretMin;
+        if (ui.controls.noteFretMax) {
+          ui.controls.noteFretMax.value = String(state.noteFretMax);
+        }
+      }
+      if (state.trainerMode === "note") {
+        if (typeof ui.setFretRangeLimits === "function") {
+          ui.setFretRangeLimits(state.noteFretMin, state.noteFretMax, true);
+        }
+        if (typeof ui.setFretRangeMask === "function") {
+          ui.setFretRangeMask(state.noteFretMin, state.noteFretMax, true);
+        }
+        newQuestion();
+      }
+    });
+  }
+  if (ui.controls.noteFretMax) {
+    ui.controls.noteFretMax.addEventListener("change", (event) => {
+      const value = Math.max(0, Math.min(12, parseInt(event.target.value, 10) || 12));
+      state.noteFretMax = value;
+      if (state.noteFretMax < state.noteFretMin) {
+        state.noteFretMin = state.noteFretMax;
+        if (ui.controls.noteFretMin) {
+          ui.controls.noteFretMin.value = String(state.noteFretMin);
+        }
+      }
+      if (state.trainerMode === "note") {
+        if (typeof ui.setFretRangeLimits === "function") {
+          ui.setFretRangeLimits(state.noteFretMin, state.noteFretMax, true);
+        }
+        if (typeof ui.setFretRangeMask === "function") {
+          ui.setFretRangeMask(state.noteFretMin, state.noteFretMax, true);
+        }
+        newQuestion();
+      }
+    });
+  }
 
   if (Array.isArray(ui.controls.stringScopeInputs)) {
     ui.controls.stringScopeInputs.forEach((input) => {
@@ -4433,6 +4523,7 @@ function setupControls() {
 
   deviceSelect.addEventListener("change", () => {
     AudioEngine.setDevice(deviceSelect.value);
+    localStorage.setItem("fretboard_selected_input_device", deviceSelect.value);
   });
   if (ui.controls.playbackInstrument) {
     ui.controls.playbackInstrument.addEventListener("change", (event) => {
@@ -4783,6 +4874,9 @@ function setupAudioListener() {
   }
 
   AudioEngine.onNote(({ note, confidence, freq }) => {
+    const requiredConfidence = typeof AudioEngine.getRequiredConfidence === "function"
+      ? Math.max(1, Number(AudioEngine.getRequiredConfidence()) || 3)
+      : 3;
     ui.updateConfidence(confidence, CONFIDENCE_MAX);
     ui.setTunerState({ freq, note, confidence, noteToFreq, centsOff });
     const detectedText = `Detected: ${note || "—"}`;
@@ -4793,7 +4887,7 @@ function setupAudioListener() {
 
     if (isSongMode()) {
       if (isCustomSongMode() && state.songCustomMode === "edit") return;
-      if (confidence < 3) return;
+      if (confidence < requiredConfidence) return;
       if (state.songActiveBeat >= state.songBeats.length) return;
       const expected = state.songBeats[state.songActiveBeat];
       if (isSilentSongStep(expected)) {
@@ -4818,7 +4912,7 @@ function setupAudioListener() {
     }
     if (!state.currentTarget) return;
     if (state.questionAnswered) return;
-    if (confidence < 3) return;
+    if (confidence < requiredConfidence) return;
     if (
       state.currentTarget.mode === "interval-ear"
       && Date.now() < (state.intervalEarIgnoreUntil || 0)
@@ -4919,12 +5013,24 @@ function setupBoard() {
   ui.buildFretboard(tuning, handleCellClick);
   requestAnimationFrame(() => {
     ui.addFretMarkers();
+    if (typeof ui.setFretRangeLimits === "function") {
+      ui.setFretRangeLimits(state.noteFretMin, state.noteFretMax, state.trainerMode === "note");
+    }
+    if (typeof ui.setFretRangeMask === "function") {
+      ui.setFretRangeMask(state.noteFretMin, state.noteFretMax, state.trainerMode === "note");
+    }
   });
 
   window.addEventListener("resize", () => {
     ui.buildFretboard(tuning, handleCellClick);
     requestAnimationFrame(() => {
       ui.addFretMarkers();
+      if (typeof ui.setFretRangeLimits === "function") {
+        ui.setFretRangeLimits(state.noteFretMin, state.noteFretMax, state.trainerMode === "note");
+      }
+      if (typeof ui.setFretRangeMask === "function") {
+        ui.setFretRangeMask(state.noteFretMin, state.noteFretMax, state.trainerMode === "note");
+      }
       syncBoard();
     });
   });

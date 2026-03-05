@@ -213,6 +213,22 @@
 
       border-radius: 2px;
     }
+    .fret.range-limit {
+      background: linear-gradient(
+        to right,
+        #4dabf7,
+        #1c7ed6
+      );
+      box-shadow: 0 0 8px rgba(28, 126, 214, 0.55);
+      z-index: 4;
+    }
+    .fret.nut.range-limit {
+      background: linear-gradient(
+        to right,
+        #74c0fc,
+        #228be6
+      );
+    }
 
 
     .fretboard {
@@ -506,6 +522,9 @@
       position: relative;
       z-index: 1;
       cursor: pointer;
+    }
+    .cell.out-of-range {
+      background: rgba(0, 0, 0, 0.04);
     }
 
     
@@ -1265,6 +1284,43 @@
       <label><input type="checkbox" name="stringScope" value="3" checked /> D</label>
       <label><input type="checkbox" name="stringScope" value="4" checked /> A</label>
       <label><input type="checkbox" name="stringScope" value="5" checked /> Low E</label>
+    </div>
+  </div>
+  <div id="noteRangeBlock" style="margin-top:8px;">
+    <div style="font-weight:bold;">Fret Range (Note Training)</div>
+    <div style="display:inline-flex; align-items:center; gap:8px; margin-top:4px; flex-wrap:wrap; justify-content:center;">
+      <label for="noteFretMin" style="font-weight:700;">From</label>
+      <select id="noteFretMin">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+        <option value="10">10</option>
+        <option value="11">11</option>
+        <option value="12">12</option>
+      </select>
+      <label for="noteFretMax" style="font-weight:700;">To</label>
+      <select id="noteFretMax">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+        <option value="10">10</option>
+        <option value="11">11</option>
+        <option value="12" selected>12</option>
+      </select>
     </div>
   </div>
   <div style="margin-top:8px;">
